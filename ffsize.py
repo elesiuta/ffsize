@@ -19,15 +19,15 @@ def writeCsv(fName, data, enc = None, delimiter = ","):
             writer.writerow(row)
 
 if __name__ == "__main__":
-    readme = ("Counts all the files, subdirectories, and total file sizes. "
-              "Matches the result in windows when checking folder properties"
-              "or du in unix.")
+    readme = ("Counts all the files, folders, and total sizes. "
+              "Matches the total in windows when checking folder properties "
+              "and du for unix.")
     parser = argparse.ArgumentParser(description=readme)
     parser.add_argument("path", action="store", type=str)
     parser.add_argument("--crc", action="store_true",
                         help="take checksum (CRC32) of files")
     parser.add_argument("--csv", action="store_true",
-                        help="write list of files and info as csv")
+                        help="write list of files, folders, and info as filelist.csv")
     parser.add_argument("--delim", action="store", type=str, default=",", metavar="CHAR",
                         help="set csv delimeter")
     parser.add_argument("--enc", action="store", type=str, default=None, metavar="ENCODING",
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         print("Total files: %s" %(fileCount))
         print("Total folders: %s" %(dirCount))
         print("Total file size: %s bytes" %("{:,}".format(totalFileSize)))
-        print("Total size: %s bytes" %("{:,}".format(duSize)))
+        print("Total file + folder size: %s bytes" %("{:,}".format(duSize)))
         if args.crc:
             print("CRC32 checksum for data is: %s" %(prettyCrc(totalCrc)))
         if args.csv:
