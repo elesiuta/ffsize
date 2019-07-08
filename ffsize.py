@@ -59,15 +59,15 @@ if __name__ == "__main__":
                 # equivalent: totalSize += os.stat(dirName + os.path.sep + f).st_size
                 if args.csv and args.crc:
                     fileCrc = crc(fullPath)
-                    totalCrc = (totalCrc + fileCrc) % 4294967296
+                    totalCrc = (totalCrc + fileCrc) % (0xFFFFFFFF + 1)
                     csvList.append([f, os.path.getsize(fullPath), prettyCrc(fileCrc), "", "", ""])
                 elif args.csv:
                     csvList.append([f, os.path.getsize(fullPath), "", "", "", ""])
                 elif args.crc:
                     # match 7-zip CRC32
                     totalCrc += crc(fullPath)
-                    totalCrc %= 4294967296 # 0xFFFFFFFF + 1
-                    # alternate: totalCrc += crc(fullPath, totalCrc)
+                    totalCrc %= (0xFFFFFFFF + 1)
+                    # alternative: totalCrc = crc(fullPath, totalCrc)
         # return results
         duSize = totalFileSize + totalFolderSize
         print("Total files: %s" %(fileCount))
