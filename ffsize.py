@@ -1,8 +1,44 @@
 import argparse
 import csv
 import os
+import shutil
 import sys
 import zlib
+
+class StatusBar:
+    def __init__(self, title: str, total: int, display: bool) -> "StatusBar":
+        self.total = total
+        self.display = display
+        terminal_width = shutil.get_terminal_size()[0]
+        if terminal_width < 16 or total <= 0:
+            self.display = False
+        if self.display:
+            self.bar_len = min(100, terminal_width - (7 + len(title)))
+            self.progress = 0
+            self.bar_progress = 0
+            sys.stdout.write(title + ": [" + "-"*self.bar_len + "]\b" + "\b"*self.bar_len)
+            sys.stdout.flush()
+
+    def initTotal(self, total: int) -> None:
+        if total <= 0:
+            self.endProgress()
+        elif self.progress == 0:
+            self.total = total
+
+    def update(self) -> None:
+        if self.display:
+            self.progress += 1
+            bar_progression = int(self.bar_len * self.progress // self.total) - self.bar_progress
+            if bar_progression != 0:
+                self.bar_progress += bar_progression
+                sys.stdout.write("#" * bar_progression)
+                sys.stdout.flush()
+
+    def endProgress(self) -> None:
+        if self.display:
+            sys.stdout.write("#" * (self.bar_len - self.bar_progress) + "]\n")
+            sys.stdout.flush()
+            self.display = False
 
 def crc(file_name, prev = 0):
     with open(file_name,"rb") as f:
@@ -40,6 +76,8 @@ def main():
             csvList = []
         if args.crc:
             totalCrc = 0
+            crc_status = StatusBar("Scanning files", 1, True)
+            crc_status.initTotal(sum(len(f) for r, d, f in os.walk(args.path, topdown=False)))
         fileCount = 0
         dirCount = 0
         totalFileSize = 0
@@ -69,6 +107,9 @@ def main():
                     totalCrc += crc(fullPath)
                     totalCrc %= (0xFFFFFFFF + 1)
                     # alternative: totalCrc = crc(fullPath, totalCrc)
+                    crc_status.update()
+        if args.crc:
+            crc_status.endProgress()
         # return results
         duSize = totalFileSize + totalFolderSize
         print("Total files: %s" %(fileCount))
