@@ -80,7 +80,10 @@ def main():
             fileCount += len(file_list)
             totalFolderSize += os.path.getsize(dir_path)
             if args.csv:
-                csvList.append([dir_path, "", "", len(sub_dir_list), len(file_list), os.path.getsize(dir_path)])
+                relPath = os.path.relpath(dir_path, rootDir)
+                if relPath == ".":
+                    relPath = os.path.abspath(dir_path)
+                csvList.append([relPath, "", "", len(sub_dir_list), len(file_list), os.path.getsize(dir_path)])
             # check each file
             for f in sorted(file_list):
                 fullPath = os.path.join(dir_path, f)
