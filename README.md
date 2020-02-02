@@ -1,7 +1,9 @@
 # f(ile)f(older)size
 Python script to quickly check the size and crc of all files and folders in a directory or export as a csv. Useful when comparing between OSs since windows only reports file sizes and du reports file + folder sizes.
+
+Get from PyPI: https://pypi.org/project/ffsize/
 ```
-usage: ffsize.py [-h] [--crc] [--csv] [--delim CHAR] [--enc ENCODING] path
+usage: ffsize [-h] [--crc] [--csv] [--delim CHAR] [--enc ENCODING] path
 
 Counts all the files, folders, and total sizes. Matches the total in windows
 when checking folder properties and du for unix.
