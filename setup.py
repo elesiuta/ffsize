@@ -1,11 +1,12 @@
 import setuptools
+import ffsize
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="ffsize",
-    version="1.0.0",
+    version=ffsize.VERSION,
     description="Counts all the files, folders, and total sizes",
     long_description=long_description,
     long_description_content_type="text/markdown",

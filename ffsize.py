@@ -5,6 +5,8 @@ import shutil
 import sys
 import zlib
 
+VERSION = "1.0.2"
+
 class StatusBar:
     def __init__(self, title):
         terminal_width = shutil.get_terminal_size()[0]
@@ -46,18 +48,17 @@ def writeCsv(file_name, data, enc = None, delimiter = ","):
         for row in data:
             writer.writerow(row)
 
-def main():
+def main() -> int:
     readme = ("Counts all the files, folders, and total sizes. "
               "Matches the total in windows when checking folder properties "
               "and du for unix.")
     parser = argparse.ArgumentParser(description=readme)
+    parser.add_argument("--version", action="version", version=VERSION)
     parser.add_argument("path", action="store", type=str)
     parser.add_argument("--crc", action="store_true",
                         help="take checksum (CRC32) of files")
     parser.add_argument("--csv", action="store_true",
-                        help="write list of files, folders, and info as filelist.csv")
-    parser.add_argument("--delim", action="store", type=str, default=",", metavar="CHAR",
-                        help="set csv delimeter")
+                        help="write list of files, folders, and info as ffsize.csv")
     parser.add_argument("--enc", action="store", type=str, default=None, metavar="ENCODING",
                         help="set csv encoding, see https://docs.python.org/3/library/codecs.html#standard-encodings")
     args = parser.parse_args()
@@ -68,8 +69,11 @@ def main():
         csvList = []
         csvDict = {}
         fileCount = 0
-        errorCount = 0
+        errorCrcCount = 0
+        errorFileCount = 0
+        errorFolderCount = 0
         dirCount = 0
+        returnCode = 0
         totalFileSize = 0
         totalFolderSize = 0
         rootDir = args.path
@@ -84,6 +88,16 @@ def main():
                 if relPath == ".":
                     relPath = os.path.abspath(dir_path)
                 csvList.append([relPath, "", "", len(sub_dir_list), len(file_list), os.path.getsize(dir_path)])
+            # check folders for errors (onerror only passes exception in args)
+            for f in sorted(sub_dir_list):
+                fullPath = os.path.join(dir_path, f)
+                try:
+                    os.scandir(fullPath)
+                except:
+                    errorFolderCount += 1
+                    if args.csv:
+                        relPath = os.path.relpath(fullPath, rootDir)
+                        csvList.append([relPath, "", "", -1, -1, -1])
             # check each file
             for f in sorted(file_list):
                 fullPath = os.path.join(dir_path, f)
@@ -93,7 +107,7 @@ def main():
                     # equivalent: totalFileSize += os.stat(dir_path + os.path.sep + f).st_size
                 except:
                     fileSize = -1
-                    errorCount += 1
+                    errorFileCount += 1
                 if args.csv:
                     if args.crc:
                         csvList.append(fullPath)
@@ -108,8 +122,12 @@ def main():
         print("Total folders: %s" %(dirCount))
         print("Total file size: %s bytes" %("{:,}".format(totalFileSize)))
         print("Total file + folder size: %s bytes" %("{:,}".format(duSize)))
-        if errorCount > 0:
-            print("Error: %s files could not be accessed" %(errorCount))
+        if errorFileCount > 0:
+            print("Error: %s file(s) could not be accessed, check permissions" %(errorFileCount), file=sys.stderr)
+            returnCode = 1
+        if errorFolderCount > 0:
+            print("Error: %s folder(s) could not be accessed, check permissions" %(errorFolderCount), file=sys.stderr)
+            returnCode = 1
         # do crc after, time saved by doing everything together is negligible
         if args.crc:
             crc_status = StatusBar("Calculating CRC")
@@ -122,13 +140,13 @@ def main():
                         # match 7-zip CRC32 total for data
                         fileCrc = crc(fullPath)
                         totalCrc = (totalCrc + fileCrc) % (0xFFFFFFFF + 1)
-                        # alternative: totalCrc = crc(fullPath, totalCrc)
                         if args.csv:
                             csvDict[fullPath]["crc"] = prettyCrc(fileCrc)
                             crc_status.update(csvDict[fullPath]["size"])
                         else:
                             crc_status.update(os.path.getsize(fullPath))
                     except:
+                        errorCrcCount += 1
                         if args.csv:
                             csvDict[fullPath]["crc"] = -1
             if args.csv:
@@ -138,10 +156,15 @@ def main():
                         csvList[i] = [f["name"], f["size"], f["crc"], "", "", ""]
             crc_status.endProgress()
             print("CRC32 checksum for data: %s" %(prettyCrc(totalCrc)))
+            if errorCrcCount > 0:
+                print("Error: %s file(s) could not be read, check permissions" %(errorCrcCount), file=sys.stderr)
+                returnCode = 1
         if args.csv:
-            writeCsv("filelist.csv", csvList, args.enc, args.delim)
+            writeCsv("ffsize.csv", csvList, args.enc)
+        return returnCode
     else:
         print("Input %s is not a valid path" %(args.path))
+        return 1
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -13,9 +13,9 @@ positional arguments:
 
 optional arguments:
   -h, --help      show this help message and exit
+  --version       show program's version number and exit
   --crc           take checksum (CRC32) of files
-  --csv           write list of files, folders, and info as filelist.csv
-  --delim CHAR    set csv delimeter
+  --csv           write list of files, folders, and info as ffsize.csv
   --enc ENCODING  set csv encoding, see
                   https://docs.python.org/3/library/codecs.html#standard-
                   encodings
