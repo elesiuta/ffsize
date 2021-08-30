@@ -1,11 +1,12 @@
 import argparse
 import csv
 import os
+import signal
 import shutil
 import sys
 import zlib
 
-VERSION = "1.0.2"
+VERSION = "1.0.4"
 
 class StatusBar:
     def __init__(self, title):
@@ -49,24 +50,26 @@ def writeCsv(file_name, data, enc = None, delimiter = ","):
             writer.writerow(row)
 
 def main() -> int:
-    readme = ("Counts all the files, folders, and total sizes. "
-              "Matches the total in windows when checking folder properties "
-              "and du for unix.")
-    parser = argparse.ArgumentParser(description=readme)
-    parser.add_argument("--version", action="version", version=VERSION)
+    signal.signal(signal.SIGINT, lambda *args: sys.exit(128 + signal.SIGINT))
+    signal.signal(signal.SIGTERM, lambda *args: sys.exit(128 + signal.SIGTERM))
+    readme = ("Counts all the files, folders, total sizes, and optionally crc in the directory recursively.")
+    parser = argparse.ArgumentParser(description=readme, usage="%(prog)s [options] path")
+    parser.add_argument("-v", "--version", action="version", version=VERSION)
     parser.add_argument("path", action="store", type=str)
-    parser.add_argument("--crc", action="store_true",
+    parser.add_argument("-c", "--crc", action="store_true",
                         help="take checksum (CRC32) of files")
-    parser.add_argument("--csv", action="store_true",
-                        help="write list of files, folders, and info as ffsize.csv")
-    parser.add_argument("--enc", action="store", type=str, default=None, metavar="ENCODING",
+    parser.add_argument("-s", "--sym", action="store_true",
+                        help="follow symbolic links that resolve to directories")
+    parser.add_argument("-w", "--csv", action="store_true",
+                        help="write list of files, folders, and info to ffsize.csv")
+    parser.add_argument("--enc", action="store", type=str, default=None, metavar="encoding",
                         help="set csv encoding, see https://docs.python.org/3/library/codecs.html#standard-encodings")
     args = parser.parse_args()
     if os.path.isdir(args.path):
         # Initialize variables
         count_status = StatusBar("Calculating sizes")
-        count_status.initTotal(sum(len(f) for r, d, f in os.walk(args.path, topdown=False)))
-        csvList = []
+        count_status.initTotal(sum(len(f) for r, d, f in os.walk(args.path, topdown=False, followlinks=args.sym)))
+        csvList = [["Name", "File Size", "CRC", "Folders", "Files", "Folder Size"]]
         csvDict = {}
         fileCount = 0
         errorCrcCount = 0
@@ -78,22 +81,24 @@ def main() -> int:
         totalFolderSize = 0
         rootDir = args.path
         # os.silly.walk
-        for dir_path, sub_dir_list, file_list in os.walk(rootDir):
-            sub_dir_list.sort()
-            dirCount += len(sub_dir_list)
+        for dir_path, subdir_list, file_list in os.walk(rootDir, followlinks=args.sym):
+            subdir_list.sort()
+            dirCount += len(subdir_list)
             fileCount += len(file_list)
             totalFolderSize += os.path.getsize(dir_path)
             if args.csv:
                 relPath = os.path.relpath(dir_path, rootDir)
                 if relPath == ".":
                     relPath = os.path.abspath(dir_path)
-                csvList.append([relPath, "", "", len(sub_dir_list), len(file_list), os.path.getsize(dir_path)])
+                csvList.append([relPath, "", "", len(subdir_list), len(file_list), os.path.getsize(dir_path)])
             # check folders for errors (onerror only passes exception in args)
-            for f in sorted(sub_dir_list):
+            for f in subdir_list:
                 fullPath = os.path.join(dir_path, f)
                 try:
                     os.scandir(fullPath)
-                except:
+                except (KeyboardInterrupt, InterruptedError):
+                        return 128 + signal.SIGINT
+                except Exception:
                     errorFolderCount += 1
                     if args.csv:
                         relPath = os.path.relpath(fullPath, rootDir)
@@ -104,8 +109,9 @@ def main() -> int:
                 try:
                     fileSize = os.path.getsize(fullPath)
                     totalFileSize += fileSize
-                    # equivalent: totalFileSize += os.stat(dir_path + os.path.sep + f).st_size
-                except:
+                except (KeyboardInterrupt, InterruptedError):
+                        return 128 + signal.SIGINT
+                except Exception:
                     fileSize = -1
                     errorFileCount += 1
                 if args.csv:
@@ -116,7 +122,7 @@ def main() -> int:
                         csvList.append([f, fileSize, "", "", "", ""])
                 count_status.update()
         count_status.endProgress()
-        # return results
+        # print results
         duSize = totalFileSize + totalFolderSize
         print("Total files: %s" %(fileCount))
         print("Total folders: %s" %(dirCount))
@@ -133,7 +139,7 @@ def main() -> int:
             crc_status = StatusBar("Calculating CRC")
             crc_status.initTotal(totalFileSize)
             totalCrc = 0
-            for dir_path, sub_dir_list, file_list in os.walk(rootDir):
+            for dir_path, subdir_list, file_list in os.walk(rootDir, followlinks=args.sym):
                 for f in file_list:
                     fullPath = os.path.join(dir_path, f)
                     try:
@@ -145,12 +151,14 @@ def main() -> int:
                             crc_status.update(csvDict[fullPath]["size"])
                         else:
                             crc_status.update(os.path.getsize(fullPath))
-                    except:
+                    except (KeyboardInterrupt, InterruptedError):
+                        return 128 + signal.SIGINT
+                    except Exception:
                         errorCrcCount += 1
                         if args.csv:
                             csvDict[fullPath]["crc"] = -1
             if args.csv:
-                for i in range(len(csvList)):
+                for i in range(1, len(csvList)):
                     if type(csvList[i]) == str:
                         f = csvDict[csvList[i]]
                         csvList[i] = [f["name"], f["size"], f["crc"], "", "", ""]

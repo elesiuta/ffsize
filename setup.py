@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="ffsize",
     version=ffsize.VERSION,
-    description="Counts all the files, folders, and total sizes",
+    description="Counts all the files, folders, total sizes, and optionally crc in the directory recursively.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/elesiuta/ffsize",
